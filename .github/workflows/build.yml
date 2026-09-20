@@ -1,1 +1,65 @@
+name: Build Funny RP
 
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-21"
+          sdkmanager "ndk;27.2.12479018"
+
+      - name: Download AML headers
+        run: |
+          git clone --depth 1 https://github.com/RusJJ/AndroidModLoader.git aml-source
+          mkdir -p include/mod
+          cp aml-source/include/mod/*.h include/mod/
+
+      - name: Prepare NDK project
+        run: |
+          mkdir -p jni
+          cp main.cpp jni/main.cpp
+          cp Android.mk jni/Android.mk
+          cp Application.mk jni/Application.mk
+          cp -r include jni/include
+
+      - name: Build
+        run: |
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018
+          $ANDROID_NDK_HOME/ndk-build \
+            NDK_PROJECT_PATH=. \
+            APP_BUILD_SCRIPT=jni/Android.mk \
+            NDK_APPLICATION_MK=jni/Application.mk \
+            V=1
+
+      - name: Package
+        run: |
+          mkdir -p output
+          find . -type f -name "libFunnyRP.so" -exec cp {} output/ \;
+          ls -R output
+
+      - name: Upload SO
+        uses: actions/upload-artifact@v4
+        with:
+          name: FunnyRP
+          path: output/
