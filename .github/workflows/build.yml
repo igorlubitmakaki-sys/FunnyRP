@@ -12,53 +12,67 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
-      - name: Install NDK
+      - name: Install Android NDK
         run: |
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-21"
           sdkmanager "ndk;27.2.12479018"
 
-      - name: Download AML headers
+      - name: Download AML
         run: |
           git clone --depth 1 https://github.com/RusJJ/AndroidModLoader.git aml-source
-          mkdir -p include/mod
-          cp aml-source/include/mod/*.h include/mod/
 
-      - name: Prepare NDK project
+      - name: Prepare project
         run: |
           mkdir -p jni
-          cp main.cpp jni/main.cpp
           cp Android.mk jni/Android.mk
           cp Application.mk jni/Application.mk
-          cp -r include jni/include
+          cp main.cpp jni/main.cpp
+          cp -r aml-source/include jni/include
 
-      - name: Build
+      - name: Build armeabi-v7a
         run: |
-          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018
-          $ANDROID_NDK_HOME/ndk-build \
+          export NDK=$ANDROID_HOME/ndk/27.2.12479018
+          $NDK/ndk-build \
             NDK_PROJECT_PATH=. \
             APP_BUILD_SCRIPT=jni/Android.mk \
             NDK_APPLICATION_MK=jni/Application.mk \
+            APP_ABI=armeabi-v7a \
             V=1
 
-      - name: Package
+      - name: Build arm64-v8a
         run: |
-          mkdir -p output
-          find . -type f -name "libFunnyRP.so" -exec cp {} output/ \;
-          ls -R output
+          rm -rf obj libs
+          export NDK=$ANDROID_HOME/ndk/27.2.12479018
+          $NDK/ndk-build \
+            NDK_PROJECT_PATH=. \
+            APP_BUILD_SCRIPT=jni/Android.mk \
+            NDK_APPLICATION_MK=jni/Application.mk \
+            APP_ABI=arm64-v8a \
+            V=1
 
-      - name: Upload SO
+      - name: Collect library
+        run: |
+          mkdir -p output/armeabi-v7a
+          mkdir -p output/arm64-v8a
+
+          find . -path "*armeabi-v7a/libFunnyRP.so" -exec cp {} output/armeabi-v7a/ \;
+          find . -path "*arm64-v8a/libFunnyRP.so" -exec cp {} output/arm64-v8a/ \;
+
+          find output -type f -print
+
+      - name: Upload libFunnyRP.so
         uses: actions/upload-artifact@v4
         with:
           name: FunnyRP
